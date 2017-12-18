@@ -1,189 +1,140 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Xml;
 
 namespace LibPostalNet
 {
-    public unsafe partial class AddressParserResponse : IDisposable
-    {
-        internal IntPtr Instance { get; set; }
+	public unsafe partial class AddressParserResponse : IDisposable
+	{
+		private IntPtr _Instance;
+		private IntPtr _InputString;
 
-        internal static readonly System.Collections.Concurrent.ConcurrentDictionary<IntPtr, AddressParserResponse> NativeToManagedMap = new System.Collections.Concurrent.ConcurrentDictionary<IntPtr, AddressParserResponse>();
-        protected bool ownsNativeInstance;
+		internal AddressParserResponse(string address, AddressParserOptions options)
+		{
+			if (ReferenceEquals(options, null)) throw new NullReferenceException();
+			_InputString = MarshalUTF8.StringToPtr(address);
+			var native = LibPostal.UnsafeNativeMethods.ParseAddress(_InputString, options._Native);
+			if (native == IntPtr.Zero || native.ToPointer() == null)
+				return;
+			_Instance = native;
+		}
 
-        internal static AddressParserResponse __CreateInstance(IntPtr native, bool skipVTables = false)
-        {
-            return new AddressParserResponse(native.ToPointer(), skipVTables);
-        }
+		~AddressParserResponse() { Dispose(false); }
+		public void Dispose()
+		{
+			Dispose(true);
+			GC.SuppressFinalize(this);
+		}
+		protected virtual void Dispose(bool disposing)
+		{
+			if (_Instance != IntPtr.Zero)
+			{
+				LibPostal.UnsafeNativeMethods.AddressParserResponseDestroy(_Instance);
+				_Instance = IntPtr.Zero;
+			}
+			if (_InputString != IntPtr.Zero)
+			{
+				Marshal.FreeHGlobal(_InputString);
+				_InputString = IntPtr.Zero;
+			}
+		}
 
-        internal static AddressParserResponse __CreateInstance(UnsafeNativeMethods native, bool skipVTables = false)
-        {
-            return new AddressParserResponse(native, skipVTables);
-        }
+		public long NumComponents
+		{
+			get
+			{
+				return (long)((UnsafeNativeMethods*)_Instance)->num_components;
+			}
+		}
 
-        private static void* __CopyValue(UnsafeNativeMethods native)
-        {
-            var ret = Marshal.AllocHGlobal(sizeof(UnsafeNativeMethods));
-            *(UnsafeNativeMethods*)ret = native;
-            return ret.ToPointer();
-        }
+		public string[] Components
+		{
+			get
+			{
+				long n = NumComponents;
+				IntPtr components = ((UnsafeNativeMethods*)_Instance)->components;
+				string[] ret = new string[n];
+				for (int x = 0; x < n; x++)
+				{
+					int offset = x * Marshal.SizeOf(typeof(IntPtr));
+					ret[x] = MarshalUTF8.PtrToString(Marshal.ReadIntPtr(components, offset));
+				}
+				return ret;
+			}
+		}
 
-        private AddressParserResponse(UnsafeNativeMethods native, bool skipVTables = false)
-            : this(__CopyValue(native), skipVTables)
-        {
-            ownsNativeInstance = true;
-            NativeToManagedMap[Instance] = this;
-        }
+		public string[] Labels
+		{
+			get
+			{
+				long n = NumComponents;
+				IntPtr labels = ((UnsafeNativeMethods*)_Instance)->labels;
+				string[] ret = new string[n];
+				for (int x = 0; x < n; x++)
+				{
+					int offset = x * Marshal.SizeOf(typeof(IntPtr));
+					ret[x] = MarshalUTF8.PtrToString(Marshal.ReadIntPtr(labels, offset));
+				}
+				return ret;
+			}
+		}
 
-        internal AddressParserResponse(void* native, bool skipVTables = false)
-        {
-            if (native == null)
-                return;
-            Instance = new IntPtr(native);
-        }
+		public List<KeyValuePair<string, string>> Results
+		{
+			get
+			{
+				var _results = new List<KeyValuePair<string, string>>();
 
-        internal AddressParserResponse()
-        {
-            Instance = Marshal.AllocHGlobal(sizeof(UnsafeNativeMethods));
-            ownsNativeInstance = true;
-            NativeToManagedMap[Instance] = this;
-        }
+				IntPtr
+					labels = ((UnsafeNativeMethods*)_Instance)->labels,
+					components = ((UnsafeNativeMethods*)_Instance)->components
+				;
 
-        internal AddressParserResponse(AddressParserResponse _0)
-        {
-            Instance = Marshal.AllocHGlobal(sizeof(UnsafeNativeMethods));
-            ownsNativeInstance = true;
-            NativeToManagedMap[Instance] = this;
-            *((UnsafeNativeMethods*)Instance) = *((UnsafeNativeMethods*)_0.Instance);
-        }
+				long n = NumComponents;
+				for (int x = 0; x < n; x++)
+				{
+					int offset = x * Marshal.SizeOf(typeof(IntPtr));
+					_results.Add(new KeyValuePair<string, string>(
+						MarshalUTF8.PtrToString(Marshal.ReadIntPtr(labels, offset)),
+						MarshalUTF8.PtrToString(Marshal.ReadIntPtr(components, offset))
+					));
+				}
+				return _results;
+			}
+		}
 
-        ~AddressParserResponse()
-        {
-            Dispose(false);
-        }
+		public string ToJSON()
+		{
+			var json = new JObject();
+			var grp = Results.GroupBy(K => K.Key, V => V.Value, (key, g) => new { Key = key, Value = g.ToArray() });
+			foreach (var x in grp)
+			{
+				var values = new JArray();
+				foreach (var y in x.Value)
+				{
+					values.Add(new JValue(y));
+				}
+				json.Add(new JProperty(x.Key, values));
+			}
+			return json.ToString(Newtonsoft.Json.Formatting.None);
+		}
 
-        public void Dispose()
-        {
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (Instance == IntPtr.Zero)
-                return;
-            AddressParserResponse __dummy;
-            NativeToManagedMap.TryRemove(Instance, out __dummy);
-            if (ownsNativeInstance)
-                Marshal.FreeHGlobal(Instance);
-            Instance = IntPtr.Zero;
-        }
-
-        public long NumComponents
-        {
-            get
-            {
-                return (long)((UnsafeNativeMethods*)Instance)->num_components;
-            }
-
-            //set
-            //{
-            //    ((Internal*)Instance)->num_components = (ulong)value;
-            //}
-        }
-
-        public string[] Components
-        {
-            get
-            {
-                long n = NumComponents;
-                sbyte** comps = (sbyte**)((UnsafeNativeMethods*)Instance)->components;
-                string[] ret = new string[n];
-                for (int x = 0; x < n; x++)
-                {
-                    ret[x] = Marshal.PtrToStringAnsi((IntPtr)comps[x]);
-                }
-                return ret;
-                //return (sbyte**)((Internal*)Instance)->components;
-            }
-
-            //set
-            //{
-            //    ((Internal*)Instance)->components = (IntPtr)value;
-            //}
-        }
-
-        public string[] Labels
-        {
-            get
-            {
-                long n = NumComponents;
-                sbyte** labels = (sbyte**)((UnsafeNativeMethods*)Instance)->labels;
-                string[] ret = new string[n];
-                for (int x = 0; x < n; x++)
-                {
-                    ret[x] = Marshal.PtrToStringAnsi((IntPtr)labels[x]);
-                }
-                return ret;
-                //return (sbyte**)((Internal*)Instance)->labels;
-            }
-
-            //set
-            //{
-            //    ((Internal*)Instance)->labels = (IntPtr)value;
-            //}
-        }
-
-        public List<KeyValuePair<string, string>> Results
-        {
-            get
-            {
-                var _results = new List<KeyValuePair<string, string>>();
-
-                sbyte**
-                    labels = (sbyte**)((UnsafeNativeMethods*)Instance)->labels,
-                    components = (sbyte**)((UnsafeNativeMethods*)Instance)->components
-                ;
-
-                unsafe
-                {
-                    for (int buc = 0; buc < (int)NumComponents; buc++)
-                    {
-                        sbyte* pLabel = labels[buc];
-                        sbyte* pComponent = components[buc];
-
-                        _results.Add(new KeyValuePair<string, string>(Marshal.PtrToStringAnsi((IntPtr)pLabel), Marshal.PtrToStringAnsi((IntPtr)pComponent)));
-                    }
-                }
-                return _results;
-            }
-        }
-
-        public string ToJSON()
-        {
-            var json = new JObject();
-            foreach (var x in Results)
-            {
-                json.Add(new JProperty(x.Key, x.Value));
-            }
-            return json.ToString();
-        }
-
-        public string ToXML()
-        {
-            XmlDocument doc = new XmlDocument();
-            doc.AppendChild(doc.CreateXmlDeclaration("1.0", "utf-8", string.Empty));
-            var address = doc.CreateElement("Address");
-            foreach (var x in Results)
-            {
-                var elem = doc.CreateElement(x.Key);
-                elem.InnerText = x.Value;
-                address.AppendChild(elem);
-            }
-            doc.AppendChild(address);
-            return doc.OuterXml;
-        }
-    }
+		public string ToXML()
+		{
+			XmlDocument doc = new XmlDocument();
+			doc.AppendChild(doc.CreateXmlDeclaration("1.0", "utf-8", string.Empty));
+			var address = doc.CreateElement("address");
+			foreach (var x in Results)
+			{
+				var elem = doc.CreateElement(x.Key);
+				elem.AppendChild(doc.CreateTextNode(x.Value));
+				address.AppendChild(elem);
+			}
+			doc.AppendChild(address);
+			return doc.OuterXml;
+		}
+	}
 }

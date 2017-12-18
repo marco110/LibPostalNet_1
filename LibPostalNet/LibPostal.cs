@@ -1,96 +1,139 @@
 ﻿using System;
+using System.IO;
+using System.Runtime.InteropServices;
 
 namespace LibPostalNet
 {
-    public unsafe partial class LibPostal
-    {
-        public static AddressExpansionOptions GetDefaultOptions()
-        {
-            var __ret = new AddressExpansionOptions.UnsafeNativeMethods();
-            UnsafeNativeMethods.GetDefaultOptions(new IntPtr(&__ret));
-            return AddressExpansionOptions.__CreateInstance(__ret);
-        }
-        public static AddressExpansionResponse ExpandAddress(string input, AddressExpansionOptions options)
-        {
-            ulong n = 0;
-            var __arg1 = ReferenceEquals(options, null) ? new AddressExpansionOptions.UnsafeNativeMethods() : *(AddressExpansionOptions.UnsafeNativeMethods*)options.Instance;
-            var __arg2 = &n;
-            var __ret = UnsafeNativeMethods.ExpandAddress(input, __arg1, __arg2);
-            return new AddressExpansionResponse(__ret, *__arg2);
-        }
-        public static void ExpansionArrayDestroy(AddressExpansionResponse self)
-        {
-            self.ExpansionArrayDestroy();
-        }
+	public unsafe partial class LibPostal
+	{
+		// Instance Logic
+		private static LibPostal _Instance;
+		public static LibPostal GetInstance() { return GetInstance(null); }
+		public static LibPostal GetInstance(string dataDir) { return _Instance ?? (_Instance = new LibPostal(dataDir)); }
 
-        
-        public static AddressParserOptions GetAddressParserDefaultOptions()
-        {
-            var __ret = new AddressParserOptions.UnsafeNativeMethods();
-            UnsafeNativeMethods.GetAddressParserDefaultOptions(new IntPtr(&__ret));
-            return AddressParserOptions.__CreateInstance(__ret);
-        }
-        public static AddressParserResponse ParseAddress(string address, AddressParserOptions options)
-        {
-            var __arg1 = ReferenceEquals(options, null) ? new AddressParserOptions.UnsafeNativeMethods() : *(AddressParserOptions.UnsafeNativeMethods*)options.Instance;
-            var __ret = UnsafeNativeMethods.ParseAddress(address, __arg1);
-            AddressParserResponse __result0;
-            if (__ret == IntPtr.Zero) __result0 = null;
-            else if (AddressParserResponse.NativeToManagedMap.ContainsKey(__ret))
-                __result0 = AddressParserResponse.NativeToManagedMap[__ret];
-            else __result0 = AddressParserResponse.__CreateInstance(__ret);
-            return __result0;
-        }
-        public static void AddressParserResponseDestroy(AddressParserResponse self)
-        {
-            var __arg0 = ReferenceEquals(self, null) ? IntPtr.Zero : self.Instance;
-            UnsafeNativeMethods.AddressParserResponseDestroy(__arg0);
-        }
+		// Library Logic
+		private IntPtr _DataDirPtr;
+		private string _DataDirStr;
+		private bool _PrintFeatures;
 
+		public string DataDir
+		{
+			get { return _DataDirStr; }
+			set
+			{
+				if (!string.IsNullOrEmpty(_DataDirStr = value))
+				{
+					if (_DataDirPtr != IntPtr.Zero)
+					{
+						Marshal.FreeHGlobal(_DataDirPtr);
+						_DataDirPtr = IntPtr.Zero;
+					}
+					_DataDirPtr = MarshalUTF8.StringToPtr(_DataDirStr);
+				}
+			}
+		}
+		public bool IsLoaded { get; private set; }
+		public bool IsParserLoaded { get; private set; }
+		public bool IsLanguageClassifierLoaded { get; private set; }
+		public bool PrintFeatures
+		{
+			get { return _PrintFeatures; }
+			set
+			{
+				if (IsParserLoaded)
+				{
+					_PrintFeatures = value;
+					UnsafeNativeMethods.ParserPrintFeatures(_PrintFeatures);
+				}
+				else
+				{
+					throw new InvalidOperationException("The LibPostal Parser must be loaded first.");
+				}
+			}
+		}
 
-        public static bool Setup()
-        {
-            var __ret = UnsafeNativeMethods.Setup();
-            return __ret;
-        }
-        public static bool Setup(string datadir)
-        {
-            var __ret = UnsafeNativeMethods.SetupDatadir(datadir);
-            return __ret;
-        }
-        public static void Teardown()
-        {
-            UnsafeNativeMethods.Teardown();
-        }
+		static LibPostal()
+		{
+			try
+			{
+				UriBuilder uri = new UriBuilder(System.Reflection.Assembly.GetExecutingAssembly().CodeBase);
+				string path = Path.GetDirectoryName(Uri.UnescapeDataString(uri.Path));
+				if (!string.IsNullOrEmpty(path))
+				{
+					path = Path.Combine(path, Environment.Is64BitProcess ? "x64" : "x86");
+					UnsafeNativeMethods.SetDllDirectory(path);
+				}
+			}
+			catch (Exception) { }
+		}
+		private LibPostal(string dataDir)
+		{
+			IsLoaded = string.IsNullOrEmpty(DataDir = dataDir) ?
+				UnsafeNativeMethods.Setup() :
+				UnsafeNativeMethods.SetupDatadir(_DataDirPtr);
+		}
+		~LibPostal()
+		{
+			_Instance = null;
+			if (IsLoaded)
+			{
+				UnsafeNativeMethods.Teardown();
+				IsLoaded = false;
+			}
+			if (IsParserLoaded)
+			{
+				UnsafeNativeMethods.TeardownParser();
+				IsParserLoaded = false;
+			}
+			if (IsLanguageClassifierLoaded)
+			{
+				UnsafeNativeMethods.TeardownLanguageClassifier();
+				IsLanguageClassifierLoaded = false;
+			}
+			if (_DataDirPtr != IntPtr.Zero)
+			{
+				Marshal.FreeHGlobal(_DataDirPtr);
+				_DataDirPtr = IntPtr.Zero;
+			}
+		}
 
-        public static bool SetupParser()
-        {
-            var __ret = UnsafeNativeMethods.SetupParser();
-            return __ret;
-        }
-        public static bool SetupParser(string datadir)
-        {
-            var __ret = UnsafeNativeMethods.SetupParserDatadir(datadir);
-            return __ret;
-        }
-        public static void TeardownParser()
-        {
-            UnsafeNativeMethods.TeardownParser();
-        }
+		public void LoadParser()
+		{
+			if (!IsParserLoaded)
+			{
+				IsParserLoaded = string.IsNullOrEmpty(DataDir) ?
+					UnsafeNativeMethods.SetupParser() :
+					UnsafeNativeMethods.SetupParserDatadir(_DataDirPtr);
+			}
+		}
+		public void LoadLanguageClassifier()
+		{
+			if (!IsLanguageClassifierLoaded)
+			{
+				IsLanguageClassifierLoaded = string.IsNullOrEmpty(DataDir) ?
+					UnsafeNativeMethods.SetupLanguageClassifier() :
+					UnsafeNativeMethods.SetupLanguageClassifierDatadir(_DataDirPtr);
+			}
+		}
 
-        public static bool SetupLanguageClassifier()
-        {
-            var __ret = UnsafeNativeMethods.SetupLanguageClassifier();
-            return __ret;
-        }
-        public static bool SetupLanguageClassifier(string datadir)
-        {
-            var __ret = UnsafeNativeMethods.SetupLanguageClassifierDatadir(datadir);
-            return __ret;
-        }
-        public static void TeardownLanguageClassifier()
-        {
-            UnsafeNativeMethods.TeardownLanguageClassifier();
-        }
-    }
+		public AddressExpansionOptions GetAddressExpansionDefaultOptions()
+		{
+			return new AddressExpansionOptions();
+		}
+		public AddressExpansionResponse ExpandAddress(string input, AddressExpansionOptions options)
+		{
+			if (!IsLanguageClassifierLoaded) { LoadLanguageClassifier(); }
+			return new AddressExpansionResponse(input, options);
+		}
+
+		public AddressParserOptions GetAddressParserDefaultOptions()
+		{
+			return new AddressParserOptions();
+		}
+		public AddressParserResponse ParseAddress(string address, AddressParserOptions options)
+		{
+			if (!IsParserLoaded) { LoadParser(); }
+			return new AddressParserResponse(address, options);
+		}
+	}
 }

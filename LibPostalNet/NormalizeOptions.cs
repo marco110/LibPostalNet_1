@@ -3,376 +3,154 @@ using System.Runtime.InteropServices;
 
 namespace LibPostalNet
 {
-    public unsafe partial class AddressExpansionOptions : IDisposable
-    {
-        internal IntPtr Instance { get; set; }
+	public unsafe partial class AddressExpansionOptions
+	{
+		internal UnsafeNativeMethods _Native;
 
-        internal static readonly System.Collections.Concurrent.ConcurrentDictionary<IntPtr, AddressExpansionOptions> NativeToManagedMap = new System.Collections.Concurrent.ConcurrentDictionary<IntPtr, AddressExpansionOptions>();
-        protected bool ownsNativeInstance;
+		internal AddressExpansionOptions()
+		{
+			_Native = LibPostal.UnsafeNativeMethods.GetDefaultOptions();
+		}
 
-        internal static AddressExpansionOptions __CreateInstance(IntPtr native, bool skipVTables = false)
-        {
-            return new AddressExpansionOptions(native.ToPointer(), skipVTables);
-        }
+		public string[] Languages
+		{
+			get
+			{
+				long n = NumLanguages;
+				IntPtr languages = _Native.languages;
+				string[] ret = new string[n];
+				for (int x = 0; x < n; x++)
+				{
+					int offset = x * Marshal.SizeOf(typeof(IntPtr));
+					ret[x] = MarshalUTF8.PtrToString(Marshal.ReadIntPtr(languages, offset));
+				}
+				return ret;
+			}
+			//set
+			//{
+			//    ((Internal*)Instance)->languages = (IntPtr)value;
+			//    NumLanguages = value.Length;
+			//}
+		}
 
-        internal static AddressExpansionOptions __CreateInstance(UnsafeNativeMethods native, bool skipVTables = false)
-        {
-            return new AddressExpansionOptions(native, skipVTables);
-        }
+		public long NumLanguages
+		{
+			get { return (long)_Native.num_languages; }
+			private set { _Native.num_languages = (ulong)value; }
+		}
 
-        private static void* __CopyValue(UnsafeNativeMethods native)
-        {
-            var ret = Marshal.AllocHGlobal(sizeof(UnsafeNativeMethods));
-            *(UnsafeNativeMethods*)ret = native;
-            return ret.ToPointer();
-        }
+		public AddressComponents AddressComponents
+		{
+			get { return (AddressComponents)_Native.address_components; }
+			set { _Native.address_components = (ushort)value; }
+		}
 
-        private AddressExpansionOptions(UnsafeNativeMethods native, bool skipVTables = false)
-            : this(__CopyValue(native), skipVTables)
-        {
-            ownsNativeInstance = true;
-            NativeToManagedMap[Instance] = this;
-        }
+		public bool LatinAscii
+		{
+			get { return _Native.latin_ascii != 0; }
+			set { _Native.latin_ascii = (byte)(value ? 1 : 0); }
+		}
 
-        internal AddressExpansionOptions(void* native, bool skipVTables = false)
-        {
-            if (native == null)
-                return;
-            Instance = new IntPtr(native);
-        }
+		public bool Transliterate
+		{
+			get { return _Native.transliterate != 0; }
+			set { _Native.transliterate = (byte)(value ? 1 : 0); }
+		}
 
-        internal AddressExpansionOptions()
-        {
-            Instance = Marshal.AllocHGlobal(sizeof(UnsafeNativeMethods));
-            ownsNativeInstance = true;
-            NativeToManagedMap[Instance] = this;
-        }
+		public bool StripAccents
+		{
+			get { return _Native.strip_accents != 0; }
+			set { _Native.strip_accents = (byte)(value ? 1 : 0); }
+		}
 
-        internal AddressExpansionOptions(AddressExpansionOptions _0)
-        {
-            Instance = Marshal.AllocHGlobal(sizeof(UnsafeNativeMethods));
-            ownsNativeInstance = true;
-            NativeToManagedMap[Instance] = this;
-            *((UnsafeNativeMethods*)Instance) = *((UnsafeNativeMethods*)_0.Instance);
-        }
+		public bool Decompose
+		{
+			get { return _Native.decompose != 0; }
+			set { _Native.decompose = (byte)(value ? 1 : 0); }
+		}
 
-        ~AddressExpansionOptions()
-        {
-            Dispose(false);
-        }
+		public bool Lowercase
+		{
+			get { return _Native.lowercase != 0; }
+			set { _Native.lowercase = (byte)(value ? 1 : 0); }
+		}
 
-        public void Dispose()
-        {
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
+		public bool TrimString
+		{
+			get { return _Native.trim_string != 0; }
+			set { _Native.trim_string = (byte)(value ? 1 : 0); }
+		}
 
-        protected virtual void Dispose(bool disposing)
-        {
-            if (Instance == IntPtr.Zero)
-                return;
-            AddressExpansionOptions __dummy;
-            NativeToManagedMap.TryRemove(Instance, out __dummy);
-            if (ownsNativeInstance)
-                Marshal.FreeHGlobal(Instance);
-            Instance = IntPtr.Zero;
-        }
+		public bool DropParentheticals
+		{
+			get { return _Native.drop_parentheticals != 0; }
+			set { _Native.drop_parentheticals = (byte)(value ? 1 : 0); }
+		}
 
-        //public string[] Langs
-        //{
-        //    get
-        //    {
-        //        IList<string> _lang = new List<string>();
-        //        unsafe
-        //        {
-        //            for (int buc = 0; buc < (int)NumLanguages; buc++)
-        //            {
-        //                sbyte* pLang = Languages[buc];
-        //                _lang.Add(Marshal.PtrToStringAnsi((IntPtr)pLang));
-        //            }
-        //        }
-        //        return _lang.ToArray();
-        //    }
-        //}
+		public bool ReplaceNumericHyphens
+		{
+			get { return _Native.replace_numeric_hyphens != 0; }
+			set { _Native.replace_numeric_hyphens = (byte)(value ? 1 : 0); }
+		}
 
-        public string[] Languages
-        {
-            get
-            {
-                long n = NumLanguages;
-                sbyte** langs = (sbyte**)((UnsafeNativeMethods*)Instance)->languages;
-                string[] ret = new string[n];
-                for (int x = 0; x < n; x++)
-                {
-                    ret[x] = Marshal.PtrToStringAnsi((IntPtr)langs[x]);
-                }
-                return ret;
-            }
+		public bool DeleteNumericHyphens
+		{
+			get { return _Native.delete_numeric_hyphens != 0; }
+			set { _Native.delete_numeric_hyphens = (byte)(value ? 1 : 0); }
+		}
 
-            //set
-            //{
-            //    ((Internal*)Instance)->languages = (IntPtr)value;
-            //}
-        }
+		public bool SplitAlphaFromNumeric
+		{
+			get { return _Native.split_alpha_from_numeric != 0; }
+			set { _Native.split_alpha_from_numeric = (byte)(value ? 1 : 0); }
+		}
 
-        public long NumLanguages
-        {
-            get
-            {
-                return (long)((UnsafeNativeMethods*)Instance)->num_languages;
-            }
+		public bool ReplaceWordHyphens
+		{
+			get { return _Native.replace_word_hyphens != 0; }
+			set { _Native.replace_word_hyphens = (byte)(value ? 1 : 0); }
+		}
 
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->num_languages = (ulong)value;
-            }
-        }
+		public bool DeleteWordHyphens
+		{
+			get { return _Native.delete_word_hyphens != 0; }
+			set { _Native.delete_word_hyphens = (byte)(value ? 1 : 0); }
+		}
 
-        public long AddressComponents
-        {
-            get
-            {
-                return (short)((UnsafeNativeMethods*)Instance)->address_components;
-            }
+		public bool DeleteFinalPeriods
+		{
+			get { return _Native.delete_final_periods != 0; }
+			set { _Native.delete_final_periods = (byte)(value ? 1 : 0); }
+		}
 
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->address_components = (ushort)value;
-            }
-        }
+		public bool DeleteAcronymPeriods
+		{
+			get { return _Native.delete_acronym_periods != 0; }
+			set { _Native.delete_acronym_periods = (byte)(value ? 1 : 0); }
+		}
 
-        public bool LatinAscii
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->latin_ascii != 0;
-            }
+		public bool DropEnglishPossessives
+		{
+			get { return _Native.drop_english_possessives != 0; }
+			set { _Native.drop_english_possessives = (byte)(value ? 1 : 0); }
+		}
 
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->latin_ascii = (byte)(value ? 1 : 0);
-            }
-        }
+		public bool DeleteApostrophes
+		{
+			get { return _Native.delete_apostrophes != 0; }
+			set { _Native.delete_apostrophes = (byte)(value ? 1 : 0); }
+		}
 
-        public bool Transliterate
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->transliterate != 0;
-            }
+		public bool ExpandNumex
+		{
+			get { return _Native.expand_numex != 0; }
+			set { _Native.expand_numex = (byte)(value ? 1 : 0); }
+		}
 
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->transliterate = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool StripAccents
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->strip_accents != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->strip_accents = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool Decompose
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->decompose != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->decompose = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool Lowercase
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->lowercase != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->lowercase = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool TrimString
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->trim_string != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->trim_string = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool DropParentheticals
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->drop_parentheticals != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->drop_parentheticals = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool ReplaceNumericHyphens
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->replace_numeric_hyphens != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->replace_numeric_hyphens = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool DeleteNumericHyphens
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->delete_numeric_hyphens != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->delete_numeric_hyphens = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool SplitAlphaFromNumeric
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->split_alpha_from_numeric != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->split_alpha_from_numeric = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool ReplaceWordHyphens
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->replace_word_hyphens != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->replace_word_hyphens = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool DeleteWordHyphens
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->delete_word_hyphens != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->delete_word_hyphens = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool DeleteFinalPeriods
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->delete_final_periods != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->delete_final_periods = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool DeleteAcronymPeriods
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->delete_acronym_periods != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->delete_acronym_periods = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool DropEnglishPossessives
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->drop_english_possessives != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->drop_english_possessives = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool DeleteApostrophes
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->delete_apostrophes != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->delete_apostrophes = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool ExpandNumex
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->expand_numex != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->expand_numex = (byte)(value ? 1 : 0);
-            }
-        }
-
-        public bool RomanNumerals
-        {
-            get
-            {
-                return ((UnsafeNativeMethods*)Instance)->roman_numerals != 0;
-            }
-
-            set
-            {
-                ((UnsafeNativeMethods*)Instance)->roman_numerals = (byte)(value ? 1 : 0);
-            }
-        }
-    }
+		public bool RomanNumerals
+		{
+			get { return _Native.roman_numerals != 0; }
+			set { _Native.roman_numerals = (byte)(value ? 1 : 0); }
+		}
+	}
 }
