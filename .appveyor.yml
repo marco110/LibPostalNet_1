@@ -1,0 +1,25 @@
+version: 1.0.{build}
+skip_branch_with_pr: true
+configuration:
+- Debug
+- Release
+platform: Any CPU
+before_build:
+- cmd: >-
+    nuget restore
+
+    cd LibPostalNet\x86
+
+    curl -sSL -o "libpostal.zip" "https://goo.gl/Bf3EzE"
+
+    7z.exe e libpostal.zip *.dll
+
+    cd ..\x64
+
+    curl -sSL -o "libpostal.zip" "https://goo.gl/o8DAi8"
+
+    7z.exe e libpostal.zip *.dll
+
+    cd ..\..\
+build:
+  project: LibPostalNet.sln
